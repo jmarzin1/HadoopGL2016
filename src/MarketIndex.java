@@ -31,6 +31,18 @@ public class MarketIndex implements Writable {
 
     public MarketIndex() {
     }
+    
+    public MarketIndex(MarketIndex copy) {
+    	this.name = copy.getName();
+    	this.date = copy.getDate();
+    	this.closingValue = copy.getClosingValue();
+    	this.dailyVariation = copy.getDailyVariation();
+    	this.openingValue = copy.getOpeningValue();
+        this.higherValue = copy.getHigherValue();
+        this.lowerValue = copy.getLowerValue();
+        this.annualVariation = copy.getAnnualVariation();
+        this.capitalization = copy.getCapitalization();
+    }
 
     @Override
     public void write(DataOutput dataOutput) throws IOException {
