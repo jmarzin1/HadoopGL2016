@@ -1,4 +1,5 @@
 import java.io.IOException;
+import java.util.Date;
 import java.util.Scanner;
 import java.util.regex.MatchResult;
 
@@ -11,17 +12,21 @@ import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.input.FileSplit;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
 
 public class StockChangeAnalysis {
 
     public static class StockChangeAnalysisMapper
-            extends Mapper<Object, Text, IntWritable, IntWritable> {
+            extends Mapper<Object, Text, IntWritable, MarketIndex> {
 
         public void map(Object key, Text value, Context context
         ) throws IOException, InterruptedException {
+        	String fileName = ((FileSplit) context.getInputSplit()).getPath().getName();
+        	Date date = convertDate(fileName);
             MarketIndex marketIndex = new MarketIndex();
+            marketIndex.setDate(date);
             String toParse = value.toString();
             String[] tokens = toParse.split("\n");
             if (tokens != null && (tokens.length >= 2) && tokens[1].contains("tdv-var")) {
@@ -39,10 +44,22 @@ public class StockChangeAnalysis {
             	return;
         	}
             System.out.println(marketIndex);
-            context.write(new IntWritable(1), new IntWritable(2));
+            context.write(new IntWritable(1), marketIndex);
         }
 
-        private void parseLine(String[] lineTokens, MarketIndex marketIndex) {
+        private Date convertDate(String fileName) {
+        	String pattern = "([0-9]+)";
+        	long timestamp = 0;
+        	Scanner scan = new Scanner(fileName);
+        	if (scan.findInLine(pattern) != null) {
+        		MatchResult matchResult = scan.match();
+        		timestamp = Long.parseLong(matchResult.group(0))*1000;
+        		scan.close();
+        	}
+			return new Date(timestamp);
+		}
+
+		private void parseLine(String[] lineTokens, MarketIndex marketIndex) {
             String pattern = "(tdv-[A-Za-z_]+)";
             String[] localTokens;
             Scanner scan = new Scanner(lineTokens[0]);
@@ -117,11 +134,13 @@ public class StockChangeAnalysis {
     }*/
 
     public static class StockChangeAnalysisReducer
-            extends Reducer<Text, IntWritable, Text, IntWritable> {
-        public void reduce(Text key, Iterable<IntWritable> values,
+            extends Reducer<IntWritable, MarketIndex, IntWritable, MarketIndex> {
+    	public void reduce(IntWritable key, Iterable<MarketIndex> values,
                            Context context
         ) throws IOException, InterruptedException {
-            //context.write(key, result);
+    		for (MarketIndex value : values) {
+    			context.write(key, value);
+    		}
         }
     }
 
@@ -136,11 +155,11 @@ public class StockChangeAnalysis {
         job.setJarByClass(StockChangeAnalysis.class);
         job.setMapperClass(StockChangeAnalysisMapper.class);
         job.setMapOutputKeyClass(IntWritable.class);
-        job.setMapOutputValueClass(IntWritable.class);
+        job.setMapOutputValueClass(MarketIndex.class);
         //job.setCombinerClass(StockChangeAnalysisCombiner.class);
         job.setReducerClass(StockChangeAnalysisReducer.class);
         job.setOutputKeyClass(IntWritable.class);
-        job.setOutputValueClass(Writable.class);
+        job.setOutputValueClass(MarketIndex.class);
         job.setInputFormatClass(HtmlInputFormat.class);
         job.setOutputFormatClass(TextOutputFormat.class);
         FileInputFormat.addInputPath(job, new Path(args[0]));
