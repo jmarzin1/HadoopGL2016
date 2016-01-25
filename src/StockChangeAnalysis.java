@@ -1,8 +1,6 @@
 import java.io.IOException;
 import java.util.Scanner;
 import java.util.regex.MatchResult;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -26,7 +24,7 @@ public class StockChangeAnalysis {
             MarketIndex marketIndex = new MarketIndex();
             String toParse = value.toString();
             String[] tokens = toParse.split("\n");
-            if (tokens[1].contains("tdv-var")) {
+            if (tokens != null && (tokens.length >= 2) && tokens[1].contains("tdv-var")) {
                 System.out.println("TESTTEST" + " " + tokens[2] + "\n\n\n" +
                         "\n\n");
                 int i = 2;
@@ -37,6 +35,9 @@ public class StockChangeAnalysis {
                     i++;
                 }
             }
+            else {
+            	return;
+        	}
             System.out.println(marketIndex);
             context.write(new IntWritable(1), new IntWritable(2));
         }
@@ -66,22 +67,22 @@ public class StockChangeAnalysis {
                     case "tdv-open":
                         localTokens = lineTokens[3].split("<");
                         if(!localTokens[0].equals("ND")) {
-                            System.out.println("open " + Float.parseFloat(localTokens[0]) + "\n");
-                            marketIndex.setOpeningValue(Float.parseFloat(localTokens[0]));
+                            System.out.println("open " + Float.parseFloat(localTokens[0].replaceAll("\\s+","")) + "\n");
+                            marketIndex.setOpeningValue(Float.parseFloat(localTokens[0].replaceAll("\\s+","")));
                         }
                         break;
                     case "tdv-high":
                         localTokens = lineTokens[3].split("<");
                         if(!localTokens[0].equals("ND")) {
-                            System.out.println("high " + Float.parseFloat(localTokens[0]) + "\n");
-                            marketIndex.setHigherValue(Float.parseFloat(localTokens[0]));
+                            System.out.println("high " + Float.parseFloat(localTokens[0].replaceAll("\\s+","")) + "\n");
+                            marketIndex.setHigherValue(Float.parseFloat(localTokens[0].replaceAll("\\s+","")));
                         }
                         break;
                     case "tdv-low":
                         localTokens = lineTokens[3].split("<");
                         if(!localTokens[0].equals("ND")) {
-                            System.out.println("low " + Float.parseFloat(localTokens[0]) + "\n");
-                            marketIndex.setLowerValue(Float.parseFloat(localTokens[0]));
+                            System.out.println("low " + Float.parseFloat(localTokens[0].replaceAll("\\s+","")) + "\n");
+                            marketIndex.setLowerValue(Float.parseFloat(localTokens[0].replaceAll("\\s+","")));
                         }
                         break;
                     case "tdv-var_an":
