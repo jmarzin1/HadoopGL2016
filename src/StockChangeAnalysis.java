@@ -1,6 +1,7 @@
 import java.io.IOException;
 import java.util.Date;
 import java.util.Scanner;
+import java.util.TreeMap;
 import java.util.regex.MatchResult;
 
 import org.apache.hadoop.conf.Configuration;
@@ -44,7 +45,7 @@ public class StockChangeAnalysis {
             	return;
         	}
             System.out.println(marketIndex);
-            context.write(new IntWritable(1), marketIndex);
+            context.write(new IntWritable(marketIndex.getCapitalization()), marketIndex);
         }
 
         private Date convertDate(String fileName) {
@@ -143,6 +144,24 @@ public class StockChangeAnalysis {
     		}
         }
     }
+    
+    public static class StockChangeTopKReducer extends Reducer<IntWritable, MarketIndex, IntWritable, MarketIndex> {
+		public int k = 10;
+		private TreeMap<Integer, MarketIndex> topKCities = new TreeMap<Integer, MarketIndex>();
+		@Override
+		public void reduce(IntWritable key, Iterable<MarketIndex> values,	Context context) throws IOException, InterruptedException {
+			for (MarketIndex value : values) {
+				// Former bug here: need to copy the 'value' instance
+				topKCities.put(Integer.valueOf(value.getCapitalization()), new MarketIndex(value));
+				if (topKCities.size() > k) {
+					topKCities.remove(topKCities.firstKey());
+				}
+			}
+			for (MarketIndex mi : topKCities.descendingMap().values()) {
+				context.write(key, mi);
+			}
+		}
+	}
 
     public static void main(String[] args) throws Exception {
         Configuration conf = new Configuration();
@@ -157,7 +176,7 @@ public class StockChangeAnalysis {
         job.setMapOutputKeyClass(IntWritable.class);
         job.setMapOutputValueClass(MarketIndex.class);
         //job.setCombinerClass(StockChangeAnalysisCombiner.class);
-        job.setReducerClass(StockChangeAnalysisReducer.class);
+        job.setReducerClass(StockChangeTopKReducer.class);
         job.setOutputKeyClass(IntWritable.class);
         job.setOutputValueClass(MarketIndex.class);
         job.setInputFormatClass(HtmlInputFormat.class);
