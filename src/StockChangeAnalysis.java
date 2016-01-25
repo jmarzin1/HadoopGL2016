@@ -29,17 +29,20 @@ public class StockChangeAnalysis {
             if (tokens[1].contains("tdv-var")) {
                 System.out.println("TESTTEST" + " " + tokens[2] + "\n\n\n" +
                         "\n\n");
-                for (int i = 2; i < 10; i++) {
+                int i = 2;
+                while (!tokens[i].contains("</tr>")) {
                     System.out.println(tokens[i]);
                     String[] lineTokens = tokens[i].split(">");
                     parseLine(lineTokens, marketIndex);
+                    i++;
                 }
             }
+            System.out.println(marketIndex);
             context.write(new IntWritable(1), new IntWritable(2));
         }
 
         private void parseLine(String[] lineTokens, MarketIndex marketIndex) {
-            String pattern = "(tdv-[A-Za-z]+)";
+            String pattern = "(tdv-[A-Za-z_]+)";
             String[] localTokens;
             Scanner scan = new Scanner(lineTokens[0]);
             if (scan.findInLine(pattern) != null) {
@@ -49,40 +52,51 @@ public class StockChangeAnalysis {
                         localTokens = lineTokens[4].split("<");
                         System.out.println("libelle " + localTokens[0] + "\n");
                         marketIndex.setName(localTokens[0]);
+                        break;
                     case "tdv-last":
-                        System.out.println("last " + Float.parseFloat(lineTokens[3]) + "\n");
-                        marketIndex.setClosingValue(Float.parseFloat(lineTokens[3]));
+                        localTokens = lineTokens[3].split("\\s");
+                        System.out.println("last " + Float.parseFloat(localTokens[0]) + "\n");
+                        marketIndex.setClosingValue(Float.parseFloat(localTokens[0]));
+                        break;
                     case "tdv-var":
-                        System.out.println("var " + Float.parseFloat(lineTokens[2]) + "\n");
-                        marketIndex.setDailyVariation(Float.parseFloat(lineTokens[2]));
+                        localTokens = lineTokens[2].split("%");
+                        System.out.println("var " + Float.parseFloat(localTokens[0]) + "\n");
+                        marketIndex.setDailyVariation(Float.parseFloat(localTokens[0]));
+                        break;
                     case "tdv-open":
-                        localTokens = lineTokens[4].split("<");
-                        System.out.println("open " + Float.parseFloat(localTokens[0]) + "\n");
+                        localTokens = lineTokens[3].split("<");
                         if(!localTokens[0].equals("ND")) {
+                            System.out.println("open " + Float.parseFloat(localTokens[0]) + "\n");
                             marketIndex.setOpeningValue(Float.parseFloat(localTokens[0]));
                         }
+                        break;
                     case "tdv-high":
-                        localTokens = lineTokens[4].split("<");
-                        System.out.println("high " + Float.parseFloat(localTokens[0]) + "\n");
+                        localTokens = lineTokens[3].split("<");
                         if(!localTokens[0].equals("ND")) {
+                            System.out.println("high " + Float.parseFloat(localTokens[0]) + "\n");
                             marketIndex.setHigherValue(Float.parseFloat(localTokens[0]));
                         }
+                        break;
                     case "tdv-low":
-                        localTokens = lineTokens[4].split("<");
-                        System.out.println("low " + Float.parseFloat(localTokens[0]) + "\n");
+                        localTokens = lineTokens[3].split("<");
                         if(!localTokens[0].equals("ND")) {
+                            System.out.println("low " + Float.parseFloat(localTokens[0]) + "\n");
                             marketIndex.setLowerValue(Float.parseFloat(localTokens[0]));
                         }
+                        break;
                     case "tdv-var_an":
-                        System.out.println("var_an " + Float.parseFloat(lineTokens[2]) + "\n");
-                        marketIndex.setAnnualVariation(Float.parseFloat(lineTokens[2]));
+                        localTokens = lineTokens[2].split("%");
+                        System.out.println("var_an " + Float.parseFloat(localTokens[0]) + "\n");
+                        marketIndex.setAnnualVariation(Float.parseFloat(localTokens[0]));
+                        break;
                     case "tdv-tot_volume":
-                        localTokens = lineTokens[4].split("[\\s<]");
-                        int volumeTotal = Integer.getInteger(localTokens[0].concat(localTokens[1]));
+                        localTokens = lineTokens[2].split("<");
+                        int volumeTotal = Integer.parseInt(localTokens[0].replaceAll("\\s+",""));
                         System.out.println("tot_volume " + volumeTotal + "\n");
                         marketIndex.setCapitalization(volumeTotal);
+                        break;
                     default:
-                        System.out.println(matchResult.group(0) + "yspasserien");
+                        System.out.println(matchResult.group(0) + "yspasserien\n");
                         break;
                 }
                 scan.close();
