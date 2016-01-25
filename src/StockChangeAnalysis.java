@@ -8,7 +8,6 @@ import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
-import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
 
@@ -47,11 +46,10 @@ public class StockChangeAnalysis {
     public static void main(String[] args) throws Exception {
         Configuration conf = new Configuration();
 
-        conf.set("xmlinput.start", "<tbody>");
-        conf.set("xmlinput.end", "</tbody>");
+        conf.set("htmlinput.start", "<tbody>");
+        conf.set("htmlinput.end", "</tbody>");
 
         Job job = Job.getInstance(conf, "MonProg");
-        job.setInputFormatClass(XmlInputFormat.class);
         job.setNumReduceTasks(1);
         job.setJarByClass(StockChangeAnalysis.class);
         job.setMapperClass(StockChangeAnalysisMapper.class);
@@ -61,6 +59,7 @@ public class StockChangeAnalysis {
         job.setReducerClass(StockChangeAnalysisReducer.class);
         job.setOutputKeyClass(IntWritable.class);
         job.setOutputValueClass(Writable.class);
+        job.setInputFormatClass(HtmlInputFormat.class);
         job.setOutputFormatClass(TextOutputFormat.class);
         FileInputFormat.addInputPath(job, new Path(args[0]));
         FileOutputFormat.setOutputPath(job, new Path(args[1]));

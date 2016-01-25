@@ -14,27 +14,27 @@ import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.mapreduce.lib.input.FileSplit;
 import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 
-public class XmlInputFormat extends TextInputFormat {
+public class HtmlInputFormat extends TextInputFormat {
 
 
-    public static final String START_TAG_KEY = "xmlinput.start";
-    public static final String END_TAG_KEY = "xmlinput.end";
+    public static final String START_TAG_KEY = "htmlinput.start";
+    public static final String END_TAG_KEY = "htmlinput.end";
 
     @Override
     public RecordReader<LongWritable, Text> createRecordReader(InputSplit split, TaskAttemptContext context) {
         try {
-            return new XmlRecordReader((FileSplit) split, context.getConfiguration());
+            return new HtmlRecordReader((FileSplit) split, context.getConfiguration());
         } catch (IOException ioe) {
             return null;
         }
     }
 
     /**
-     * XMLRecordReader class to read through a given xml document to output xml blocks as records as specified
+     * HTMLRecordReader class to read through a given html document to output html blocks as records as specified
      * by the start tag and end tag
      *
      */
-    public static class XmlRecordReader extends RecordReader<LongWritable, Text> {
+    public static class HtmlRecordReader extends RecordReader<LongWritable, Text> {
 
         private final byte[] startTag;
         private final byte[] endTag;
@@ -45,7 +45,7 @@ public class XmlInputFormat extends TextInputFormat {
         private LongWritable currentKey;
         private Text currentValue;
 
-        public XmlRecordReader(FileSplit split, Configuration conf) throws IOException {
+        public HtmlRecordReader(FileSplit split, Configuration conf) throws IOException {
             startTag = conf.get(START_TAG_KEY).getBytes(StandardCharsets.UTF_8);
             endTag = conf.get(END_TAG_KEY).getBytes(StandardCharsets.UTF_8);
 
