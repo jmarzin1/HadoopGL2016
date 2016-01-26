@@ -9,6 +9,7 @@ import java.util.regex.MatchResult;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
@@ -113,25 +114,24 @@ public class StockChangeAnalysis {
     /*                  TOP K  (WITH PREPARSED)             */
 
 
-
     public static class StockChangeTopKMapperB
-    extends Mapper<Object, Text, NullWritable, MarketIndex> {
-    	private TreeMap<Integer, MarketIndex> topKMarketIndexes = new TreeMap<>();
-    	private HashMap<String, Integer> converter = new HashMap<>();
-    	
-    	private int k = 10;
-    	
-    	public void map(Object key, Text value, Context context
-    			) throws IOException, InterruptedException {
-    		
-    		MarketIndex marketIndex = new MarketIndex();
-    		String toParse = value.toString();
-    		String[] tokens = toParse.split(",");
-    		if (tokens[0].contains("0")) {
-    			fillMarketIndexData(tokens, marketIndex);
-    		} else {
-    			return;
-    		}
+            extends Mapper<Object, Text, NullWritable, MarketIndex> {
+        private TreeMap<Integer, MarketIndex> topKMarketIndexes = new TreeMap<>();
+        private HashMap<String, Integer> converter = new HashMap<>();
+
+        private int k = 10;
+
+        public void map(Object key, Text value, Context context
+        ) throws IOException, InterruptedException {
+
+            MarketIndex marketIndex = new MarketIndex();
+            String toParse = value.toString();
+            String[] tokens = toParse.split(",");
+            if (tokens[0].contains("0")) {
+                fillMarketIndexData(tokens, marketIndex);
+            } else {
+                return;
+            }
             if (converter.get(marketIndex.getName()) == null) {
                 topKMarketIndexes.put(marketIndex.getCapitalization(), marketIndex);
                 converter.put(marketIndex.getName(), marketIndex.getCapitalization());
@@ -146,9 +146,9 @@ public class StockChangeAnalysis {
                     converter.put(marketIndex.getName(), marketIndex.getCapitalization());
                 }
             }
-    	}
+        }
 
-    	@Override
+        @Override
         protected void cleanup(Context context) throws IOException,
                 InterruptedException {
             // Output our ten records to the reducers with a null key
@@ -246,40 +246,46 @@ public class StockChangeAnalysis {
         }
     }
 
+/*                Correlation                              */
 
-    /*
-    public static class CorrelationMapper extends Mapper<Object, Text, Text, MarketIndex> {
+
+    public static class CorrelationMapper extends Mapper<Object, Text, LongWritable, MarketIndex> {
         public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
-            String fileName = ((FileSplit) context.getInputSplit()).getPath().getName();
-            Date date = convertDate(fileName);
             MarketIndex marketIndex = new MarketIndex();
-            marketIndex.setDate(date);
             String toParse = value.toString();
-            String[] tokens = toParse.split("\n");
-            if ((tokens.length >= 2) && tokens[1].contains("tdv-var")) {
-                int i = 2;
-                while (!tokens[i].contains("</tr>")) {
-                    String[] lineTokens = tokens[i].split(">");
-                    parseLine(lineTokens, marketIndex);
-                    i++;
-                }
+            String[] tokens = toParse.split(",");
+            if (tokens[0].contains("0")) {
+                fillMarketIndexData(tokens, marketIndex);
             } else {
                 return;
             }
-            context.write(new Text(marketIndex.getDate().toString()), marketIndex);
+            context.write(new LongWritable(marketIndex.getDate()), marketIndex);
         }
     }
 
-    public static class CorrelationMapper2 extends Mapper<Text, MarketIndex, Text, MarketIndex> {
-        public void reduce(IntWritable key, Iterable<MarketIndex> values, Context context) throws IOException, InterruptedException {
-            int sum = 0;
-            for (IntWritable val : values) {
-                sum += val.get();
+    public static class CorrelationCombiner extends Reducer<LongWritable, MarketIndex, LongWritable, Extrema> {
+        public void reduce(LongWritable key, Iterable<MarketIndex> values, Context context) throws IOException, InterruptedException {
+            Extrema extrema = new Extrema();
+            for (MarketIndex val : values) {
+                if (extrema.getBest().getDailyVariation() == 0 || val.getDailyVariation() > extrema.getBest().getDailyVariation()) {
+                    extrema.setBest(new MarketIndex(val));
+                }
+                if (extrema.getWorst().getDailyVariation() == 0 || val.getDailyVariation() < extrema.getWorst().getDailyVariation()) {
+                    extrema.setWorst(new MarketIndex(val));
+                }
             }
-            context.write(key, new IntWritable(sum));
+            context.write(key, extrema);
         }
     }
-*/
+
+    /*
+    public static class CorrelationReducer extends Reducer<LongWritable, Extrema, LongWritable, Extrema> {
+        public void reduce(LongWritable key, Iterable<Extrema> values, Context context) throws IOException, InterruptedException {
+            for (Extrema val : values) {
+                context.write(key, val);
+            }
+        }
+    }*/
 
 
     public static void main(String[] args) throws Exception {
@@ -304,7 +310,7 @@ public class StockChangeAnalysis {
         int returnCode = 0;
         switch (commande) {
             case "parsing":
-            	job.setInputFormatClass(HtmlInputFormat.class);
+                job.setInputFormatClass(HtmlInputFormat.class);
 
                 job.setMapperClass(StockChangeAnalysisMapper.class);
                 job.setMapOutputKeyClass(IntWritable.class);
@@ -317,7 +323,7 @@ public class StockChangeAnalysis {
                 returnCode = job.waitForCompletion(true) ? 0 : 1;
                 break;
             case "topK":
-            	job.setInputFormatClass(TextInputFormat.class);
+                job.setInputFormatClass(TextInputFormat.class);
 
                 job.setMapperClass(StockChangeTopKMapperB.class);
                 job.setMapOutputKeyClass(NullWritable.class);
@@ -352,6 +358,21 @@ public class StockChangeAnalysis {
                 job.setReducerClass(MinMaxReducer.class);
                 job.setOutputKeyClass(Text.class);
                 job.setOutputValueClass(MinMaxTuple.class);
+
+                returnCode = job.waitForCompletion(true) ? 0 : 1;
+                break;
+            case "corre":
+                job.setInputFormatClass(TextInputFormat.class);
+
+                job.setMapperClass(CorrelationMapper.class);
+                job.setMapOutputKeyClass(LongWritable.class);
+                job.setMapOutputValueClass(MarketIndex.class);
+
+                job.setReducerClass(CorrelationCombiner.class);
+
+                //job.setReducerClass(CorrelationReducer.class);
+                job.setOutputKeyClass(LongWritable.class);
+                job.setOutputValueClass(Extrema.class);
 
                 returnCode = job.waitForCompletion(true) ? 0 : 1;
                 break;
@@ -441,16 +462,15 @@ public class StockChangeAnalysis {
         String[] tokenCapitalization = tokenNumber[1].split("}");
         marketIndex.setCapitalization(Integer.parseInt(tokenCapitalization[0]));
     }
-    
+
     public static boolean isTimestampOk(String token, Date startDate, Date endDate) {
-    	String[] tokenNumber = token.split("=");
-    	long timestamp = Long.parseLong(tokenNumber[1]);
-    	if ((timestamp <= endDate.getTime()) && (timestamp >= startDate.getTime())) {
-    		return true;
-    	}
-    	else {
-    		return false;
-    	}
+        String[] tokenNumber = token.split("=");
+        long timestamp = Long.parseLong(tokenNumber[1]);
+        if ((timestamp <= endDate.getTime()) && (timestamp >= startDate.getTime())) {
+            return true;
+        } else {
+            return false;
+        }
     }
 
     public static Date convertDate(String fileName) {
