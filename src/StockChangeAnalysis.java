@@ -22,6 +22,10 @@ import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
 
 public class StockChangeAnalysis {
 
+
+/*             PARSING                   */
+
+
     public static class StockChangeAnalysisMapper
             extends Mapper<Object, Text, IntWritable, MarketIndex> {
 
@@ -47,6 +51,68 @@ public class StockChangeAnalysis {
 
         }
     }
+
+
+    public static class StockChangeAnalysisReducer
+            extends Reducer<IntWritable, MarketIndex, IntWritable, MarketIndex> {
+        public void reduce(IntWritable key, Iterable<MarketIndex> values,
+                           Context context
+        ) throws IOException, InterruptedException {
+            for (MarketIndex value : values) {
+                context.write(key, value);
+            }
+        }
+    }
+
+
+
+    /*             TOPK (WITHOUT PRE-PARSING)                   */
+
+    public static class StockChangeTopKMapper
+            extends Mapper<Object, Text, NullWritable, MarketIndex> {
+        public int k = 10;
+        private TreeMap<Integer, MarketIndex> topKMarketIndexes = new TreeMap<>();
+
+        public void map(Object key, Text value, Context context
+        ) throws IOException, InterruptedException {
+            String fileName = ((FileSplit) context.getInputSplit()).getPath().getName();
+            Date date = convertDate(fileName);
+            MarketIndex marketIndex = new MarketIndex();
+            marketIndex.setDate(date.getTime());
+            String toParse = value.toString();
+            String[] tokens = toParse.split("\n");
+            if ((tokens.length >= 2) && tokens[1].contains("tdv-var")) {
+                int i = 2;
+                while (!tokens[i].contains("</tr>")) {
+                    String[] lineTokens = tokens[i].split(">");
+                    parseLine(lineTokens, marketIndex);
+                    i++;
+                }
+            } else {
+                return;
+            }
+            topKMarketIndexes.put(marketIndex.getCapitalization(), marketIndex);
+            if (topKMarketIndexes.size() > k) {
+                topKMarketIndexes.remove(topKMarketIndexes.firstKey());
+            }
+        }
+
+        @Override
+        protected void cleanup(Context context) throws IOException,
+                InterruptedException {
+            // Output our ten records to the reducers with a null key
+            for (MarketIndex marketIndex : topKMarketIndexes.values()) {
+                context.write(NullWritable.get(), marketIndex);
+            }
+        }
+
+    }
+
+
+
+    /*                  TOP K  (WITH PREPARSED)             */
+
+
 
     public static class StockChangeTopKMapperB
     extends Mapper<Object, Text, NullWritable, MarketIndex> {
@@ -92,122 +158,6 @@ public class StockChangeAnalysis {
         }
 
     }
-    
-    
-    public static class StockChangeTopKMapper
-            extends Mapper<Object, Text, NullWritable, MarketIndex> {
-        public int k = 10;
-        private TreeMap<Integer, MarketIndex> topKMarketIndexes = new TreeMap<>();
-
-        public void map(Object key, Text value, Context context
-        ) throws IOException, InterruptedException {
-            String fileName = ((FileSplit) context.getInputSplit()).getPath().getName();
-            Date date = convertDate(fileName);
-            MarketIndex marketIndex = new MarketIndex();
-            marketIndex.setDate(date.getTime());
-            String toParse = value.toString();
-            String[] tokens = toParse.split("\n");
-            if ((tokens.length >= 2) && tokens[1].contains("tdv-var")) {
-                int i = 2;
-                while (!tokens[i].contains("</tr>")) {
-                    String[] lineTokens = tokens[i].split(">");
-                    parseLine(lineTokens, marketIndex);
-                    i++;
-                }
-            } else {
-                return;
-            }
-            topKMarketIndexes.put(marketIndex.getCapitalization(), marketIndex);
-            if (topKMarketIndexes.size() > k) {
-                topKMarketIndexes.remove(topKMarketIndexes.firstKey());
-            }
-        }
-
-        @Override
-        protected void cleanup(Context context) throws IOException,
-                InterruptedException {
-            // Output our ten records to the reducers with a null key
-            for (MarketIndex marketIndex : topKMarketIndexes.values()) {
-                context.write(NullWritable.get(), marketIndex);
-            }
-        }
-
-    }
-
-
-    public static class MinMaxCountMapper extends Mapper<Object, Text, Text, MinMaxTuple> {
-        private Text outUserId = new Text();
-        private MinMaxTuple outminMaxTuple = new MinMaxTuple();
-
-        public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
-            String fileName = ((FileSplit) context.getInputSplit()).getPath().getName();
-            Date date = convertDate(fileName);
-            MarketIndex marketIndex = new MarketIndex();
-            marketIndex.setDate(date.getTime());
-            String toParse = value.toString();
-            String[] tokens = toParse.split("\n");
-            if ((tokens.length >= 2) && tokens[1].contains("tdv-var")) {
-                int i = 2;
-                while (!tokens[i].contains("</tr>")) {
-                    String[] lineTokens = tokens[i].split(">");
-                    parseLine(lineTokens, marketIndex);
-                    i++;
-                }
-            } else {
-                return;
-            }
-            outminMaxTuple.setMinVar(marketIndex.getDailyVariation());
-            outminMaxTuple.setMaxVar(marketIndex.getDailyVariation());
-            outUserId.set(marketIndex.getName());
-            context.write(outUserId, outminMaxTuple);
-        }
-    }
-
-    /*
-    public static class CorrelationMapper extends Mapper<Object, Text, Text, MarketIndex> {
-        public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
-            String fileName = ((FileSplit) context.getInputSplit()).getPath().getName();
-            Date date = convertDate(fileName);
-            MarketIndex marketIndex = new MarketIndex();
-            marketIndex.setDate(date);
-            String toParse = value.toString();
-            String[] tokens = toParse.split("\n");
-            if ((tokens.length >= 2) && tokens[1].contains("tdv-var")) {
-                int i = 2;
-                while (!tokens[i].contains("</tr>")) {
-                    String[] lineTokens = tokens[i].split(">");
-                    parseLine(lineTokens, marketIndex);
-                    i++;
-                }
-            } else {
-                return;
-            }
-            context.write(new Text(marketIndex.getDate().toString()), marketIndex);
-        }
-    }
-
-    public static class CorrelationMapper2 extends Mapper<Text, MarketIndex, Text, MarketIndex> {
-        public void reduce(IntWritable key, Iterable<MarketIndex> values, Context context) throws IOException, InterruptedException {
-            int sum = 0;
-            for (IntWritable val : values) {
-                sum += val.get();
-            }
-            context.write(key, new IntWritable(sum));
-        }
-    }
-*/
-
-
-    public static class StockChangeAnalysisReducer
-            extends Reducer<IntWritable, MarketIndex, IntWritable, MarketIndex> {
-        public void reduce(IntWritable key, Iterable<MarketIndex> values,
-                           Context context
-        ) throws IOException, InterruptedException {
-            for (MarketIndex value : values) {
-                context.write(key, value);
-            }
-        }
-    }
 
     public static class StockChangeTopKReducer extends Reducer<NullWritable, MarketIndex, NullWritable, Text> {
         public int k = 10;
@@ -244,7 +194,39 @@ public class StockChangeAnalysis {
         }
     }
 
-    public static class MinMaxCountReducer extends Reducer<Text, MinMaxTuple, Text, MinMaxTuple> {
+
+/*       MINMAX                       */
+
+
+    public static class MinMaxMapper extends Mapper<Object, Text, Text, MinMaxTuple> {
+        private Text outUserId = new Text();
+        private MinMaxTuple outminMaxTuple = new MinMaxTuple();
+
+        public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
+            String fileName = ((FileSplit) context.getInputSplit()).getPath().getName();
+            Date date = convertDate(fileName);
+            MarketIndex marketIndex = new MarketIndex();
+            marketIndex.setDate(date.getTime());
+            String toParse = value.toString();
+            String[] tokens = toParse.split("\n");
+            if ((tokens.length >= 2) && tokens[1].contains("tdv-var")) {
+                int i = 2;
+                while (!tokens[i].contains("</tr>")) {
+                    String[] lineTokens = tokens[i].split(">");
+                    parseLine(lineTokens, marketIndex);
+                    i++;
+                }
+            } else {
+                return;
+            }
+            outminMaxTuple.setMinVar(marketIndex.getDailyVariation());
+            outminMaxTuple.setMaxVar(marketIndex.getDailyVariation());
+            outUserId.set(marketIndex.getName());
+            context.write(outUserId, outminMaxTuple);
+        }
+    }
+
+    public static class MinMaxReducer extends Reducer<Text, MinMaxTuple, Text, MinMaxTuple> {
         private MinMaxTuple result = new MinMaxTuple();
 
         public void reduce(Text key, Iterable<MinMaxTuple> values,
@@ -264,6 +246,40 @@ public class StockChangeAnalysis {
         }
     }
 
+
+    /*
+    public static class CorrelationMapper extends Mapper<Object, Text, Text, MarketIndex> {
+        public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
+            String fileName = ((FileSplit) context.getInputSplit()).getPath().getName();
+            Date date = convertDate(fileName);
+            MarketIndex marketIndex = new MarketIndex();
+            marketIndex.setDate(date);
+            String toParse = value.toString();
+            String[] tokens = toParse.split("\n");
+            if ((tokens.length >= 2) && tokens[1].contains("tdv-var")) {
+                int i = 2;
+                while (!tokens[i].contains("</tr>")) {
+                    String[] lineTokens = tokens[i].split(">");
+                    parseLine(lineTokens, marketIndex);
+                    i++;
+                }
+            } else {
+                return;
+            }
+            context.write(new Text(marketIndex.getDate().toString()), marketIndex);
+        }
+    }
+
+    public static class CorrelationMapper2 extends Mapper<Text, MarketIndex, Text, MarketIndex> {
+        public void reduce(IntWritable key, Iterable<MarketIndex> values, Context context) throws IOException, InterruptedException {
+            int sum = 0;
+            for (IntWritable val : values) {
+                sum += val.get();
+            }
+            context.write(key, new IntWritable(sum));
+        }
+    }
+*/
 
 
     public static void main(String[] args) throws Exception {
@@ -313,12 +329,27 @@ public class StockChangeAnalysis {
 
                 returnCode = job.waitForCompletion(true) ? 0 : 1;
                 break;
+            case "topKWithoutParsing":
+                job.setInputFormatClass(HtmlInputFormat.class);
+
+                job.setMapperClass(StockChangeTopKMapper.class);
+                job.setMapOutputKeyClass(NullWritable.class);
+                job.setMapOutputValueClass(MarketIndex.class);
+
+                job.setReducerClass(StockChangeTopKReducer.class);
+                job.setOutputKeyClass(NullWritable.class);
+                job.setOutputValueClass(Text.class);
+
+                returnCode = job.waitForCompletion(true) ? 0 : 1;
+
             case "minMax":
-                job.setMapperClass(MinMaxCountMapper.class);
+                job.setInputFormatClass(HtmlInputFormat.class);
+
+                job.setMapperClass(MinMaxMapper.class);
                 job.setMapOutputKeyClass(Text.class);
                 job.setMapOutputValueClass(MinMaxTuple.class);
 
-                job.setReducerClass(MinMaxCountReducer.class);
+                job.setReducerClass(MinMaxReducer.class);
                 job.setOutputKeyClass(Text.class);
                 job.setOutputValueClass(MinMaxTuple.class);
 
