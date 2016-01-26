@@ -246,7 +246,7 @@ public class StockChangeAnalysis {
         }
     }
 
-/*                Correlation                              */
+/*                Best and Worst                              */
 
 
     public static class BestAndWorstMapper extends Mapper<Object, Text, LongWritable, MarketIndex> {
@@ -279,13 +279,6 @@ public class StockChangeAnalysis {
     }
 
 
-    public static class CorrelationReducer extends Reducer<LongWritable, Extrema, LongWritable, Extrema> {
-        public void reduce(LongWritable key, Iterable<Extrema> values, Context context) throws IOException, InterruptedException {
-            for (Extrema val : values) {
-                context.write(key, val);
-            }
-        }
-    }
 
 
     public static void main(String[] args) throws Exception {
@@ -361,7 +354,7 @@ public class StockChangeAnalysis {
 
                 returnCode = job.waitForCompletion(true) ? 0 : 1;
                 break;
-            case "corre":
+            case "bestAndWorst":
                 job.setInputFormatClass(TextInputFormat.class);
 
                 job.setMapperClass(BestAndWorstMapper.class);
