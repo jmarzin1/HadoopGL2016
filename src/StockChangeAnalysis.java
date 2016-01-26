@@ -15,7 +15,6 @@ import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
-import org.apache.hadoop.mapreduce.lib.chain.ChainMapper;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 import org.apache.hadoop.mapreduce.lib.input.FileSplit;
@@ -274,10 +273,34 @@ public class StockChangeAnalysis {
                     extrema.setWorst(new MarketIndex(val));
                 }
             }
-            context.write(new Text(extrema.getBest().getName() + "+"), new Text(extrema.getWorst().getName()));
+            context.write(new Text(extrema.getBest().getName() + "$ "), new Text(" $" + extrema.getWorst().getName()));
         }
     }
 
+    /*               MiniCorrelation                              */
+
+
+    public static class BestAndWorstCountMapper extends Mapper<Object, Text, Text, IntWritable> {
+        public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
+            String toParse = value.toString();
+            String[] tokens = toParse.split("$");
+            String result="";
+            if (tokens != null && tokens.length > 2) {
+            	result= tokens[0] + tokens[2];
+            }
+            context.write(new Text(result), new IntWritable(1));
+        }
+    }
+
+    public static class BestAndWorstCountReducer extends Reducer<Text, IntWritable, Text, IntWritable> {
+        public void reduce(Text key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
+        	Integer count = 0;
+            for (IntWritable val : values) {
+            	count+=val.get();
+            }
+            context.write(key, new IntWritable(count));
+        }
+    }
 
 
 
@@ -364,6 +387,19 @@ public class StockChangeAnalysis {
                 job.setReducerClass(BestAndWorstReducer.class);
                 job.setOutputKeyClass(Text.class);
                 job.setOutputValueClass(Text.class);
+
+                returnCode = job.waitForCompletion(true) ? 0 : 1;
+                break;
+            case "count":
+                job.setInputFormatClass(TextInputFormat.class);
+
+                job.setMapperClass(BestAndWorstCountMapper.class);
+                job.setMapOutputKeyClass(Text.class);
+                job.setMapOutputValueClass(IntWritable.class);
+
+                job.setReducerClass(BestAndWorstCountReducer.class);
+                job.setOutputKeyClass(Text.class);
+                job.setOutputValueClass(IntWritable.class);
 
                 returnCode = job.waitForCompletion(true) ? 0 : 1;
                 break;
