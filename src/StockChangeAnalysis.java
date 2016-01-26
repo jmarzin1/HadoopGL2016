@@ -154,17 +154,50 @@ public class StockChangeAnalysis {
         Job job = Job.getInstance(conf, "MonProg");
         job.setNumReduceTasks(1);
         job.setJarByClass(StockChangeAnalysis.class);
-        job.setMapperClass(StockChangeTopKMapper.class);
-        job.setMapOutputKeyClass(NullWritable.class);
-        job.setMapOutputValueClass(MarketIndex.class);
-        job.setReducerClass(StockChangeTopKReducer.class);
-        job.setOutputKeyClass(NullWritable.class);
-        job.setOutputValueClass(Text.class);
         job.setInputFormatClass(HtmlInputFormat.class);
         job.setOutputFormatClass(TextOutputFormat.class);
-        FileInputFormat.addInputPath(job, new Path(args[0]));
-        FileOutputFormat.setOutputPath(job, new Path(args[1]));
-        System.exit(job.waitForCompletion(true) ? 0 : 1);
+        //FileInputFormat.addInputPath(job, new Path(args[0]));
+        //FileOutputFormat.setOutputPath(job, new Path(args[1]));
+        String commande = "";
+		if (args.length>2) {
+			commande = args[0];
+			FileInputFormat.addInputPath(job, new Path(args[1]));
+			FileOutputFormat.setOutputPath(job, new Path(args[2]));
+		}
+		int returnCode = 0;
+		switch (commande) {
+		case "clean":
+			//job.setMapperClass(CitiesWithPopMapper.class);
+			//job.setReducerClass(MaxReduce.class);
+			//returnCode = job.waitForCompletion(true) ? 0 : 1;
+			break;
+		case "parsing":
+			job.setMapperClass(StockChangeAnalysisMapper.class);
+			job.setMapOutputKeyClass(IntWritable.class);
+			job.setMapOutputValueClass(MarketIndex.class);
+			job.setReducerClass(StockChangeAnalysisReducer.class);
+			job.setOutputKeyClass(IntWritable.class);
+	        job.setOutputValueClass(MarketIndex.class);
+			returnCode = job.waitForCompletion(true) ? 0 : 1;
+			break;
+		case "topK":
+			job.setMapperClass(StockChangeTopKMapper.class);
+			job.setMapOutputKeyClass(NullWritable.class);
+			job.setMapOutputValueClass(MarketIndex.class);
+			job.setReducerClass(StockChangeTopKReducer.class);
+			job.setOutputKeyClass(NullWritable.class);
+	        job.setOutputValueClass(Text.class);
+			returnCode = job.waitForCompletion(true) ? 0 : 1;
+			break;
+		default:
+			System.out.println("Usage: commands args");
+			System.out.println("commands:");
+			System.out.println(" - parsing [inputURI] [outputURI]");
+			System.out.println(" - topK [inputURI] [outputURI]");
+			returnCode = 1;
+		}
+		
+		System.exit(returnCode);
     }
 
     public static void parseLine(String[] lineTokens, MarketIndex marketIndex) {
