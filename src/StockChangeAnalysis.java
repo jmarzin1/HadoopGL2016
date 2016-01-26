@@ -273,7 +273,7 @@ public class StockChangeAnalysis {
                     extrema.setWorst(new MarketIndex(val));
                 }
             }
-            context.write(new Text(extrema.getBest().getName() + "$ "), new Text(" $" + extrema.getWorst().getName()));
+            context.write(new Text(extrema.getBest().getName() + "# "), new Text(" #" + extrema.getWorst().getName()));
         }
     }
 
@@ -283,10 +283,10 @@ public class StockChangeAnalysis {
     public static class BestAndWorstCountMapper extends Mapper<Object, Text, Text, IntWritable> {
         public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
             String toParse = value.toString();
-            String[] tokens = toParse.split("$");
+            String[] tokens = toParse.split("#");
             String result="";
-            if (tokens != null && tokens.length > 2) {
-            	result= tokens[0] + tokens[2];
+            if (tokens.length > 2) {
+            	result= tokens[0] + " " + tokens[2];
             }
             context.write(new Text(result), new IntWritable(1));
         }
