@@ -441,6 +441,17 @@ public class StockChangeAnalysis {
         String[] tokenCapitalization = tokenNumber[1].split("}");
         marketIndex.setCapitalization(Integer.parseInt(tokenCapitalization[0]));
     }
+    
+    public static boolean isTimestampOk(String token, Date startDate, Date endDate) {
+    	String[] tokenNumber = token.split("=");
+    	long timestamp = Long.parseLong(tokenNumber[1]);
+    	if ((timestamp <= endDate.getTime()) && (timestamp >= startDate.getTime())) {
+    		return true;
+    	}
+    	else {
+    		return false;
+    	}
+    }
 
     public static Date convertDate(String fileName) {
         String pattern = "([0-9]+)";
