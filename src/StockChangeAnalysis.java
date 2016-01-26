@@ -341,7 +341,7 @@ public class StockChangeAnalysis {
                 job.setOutputValueClass(Text.class);
 
                 returnCode = job.waitForCompletion(true) ? 0 : 1;
-
+                break;
             case "minMax":
                 job.setInputFormatClass(HtmlInputFormat.class);
 
