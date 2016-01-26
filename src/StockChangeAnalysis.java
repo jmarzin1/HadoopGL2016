@@ -14,6 +14,7 @@ import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 import org.apache.hadoop.mapreduce.lib.input.FileSplit;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
@@ -21,14 +22,14 @@ import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
 public class StockChangeAnalysis {
 
     public static class StockChangeAnalysisMapper
-            extends Mapper<Object, Text, NullWritable, MarketIndex> {
+            extends Mapper<Object, Text, IntWritable, MarketIndex> {
 
         public void map(Object key, Text value, Context context
         ) throws IOException, InterruptedException {
             String fileName = ((FileSplit) context.getInputSplit()).getPath().getName();
             Date date = convertDate(fileName);
             MarketIndex marketIndex = new MarketIndex();
-            marketIndex.setDate(date);
+            marketIndex.setDate(date.getTime());
             String toParse = value.toString();
             String[] tokens = toParse.split("\n");
             if ((tokens.length >= 2) && tokens[1].contains("tdv-var")) {
@@ -41,12 +42,67 @@ public class StockChangeAnalysis {
             } else {
                 return;
             }
-            context.write(NullWritable.get(), marketIndex);
+            context.write(new IntWritable(), marketIndex);
 
         }
     }
 
+    public static class StockChangeTopKMapperB
+    extends Mapper<Object, Text, NullWritable, MarketIndex> {
+    	private TreeMap<Integer, MarketIndex> topKMarketIndexes = new TreeMap<>();
+    	private int k = 10;
+    	
+    	public void map(Object key, Text value, Context context
+    			) throws IOException, InterruptedException {
+    		
+    		MarketIndex marketIndex = new MarketIndex();
+    		String toParse = value.toString();
+    		String[] tokens = toParse.split(",");
+    		if (tokens[0].contains("0")) {
+    			fillMarketIndexData(tokens, marketIndex);
+    		} else {
+    			return;
+    		}
+    		topKMarketIndexes.put(marketIndex.getCapitalization(), marketIndex);
+            if (topKMarketIndexes.size() > k) {
+                topKMarketIndexes.remove(topKMarketIndexes.firstKey());
+            }
+    	}
 
+    	@Override
+        protected void cleanup(Context context) throws IOException,
+                InterruptedException {
+            // Output our ten records to the reducers with a null key
+            for (MarketIndex marketIndex : topKMarketIndexes.values()) {
+                context.write(NullWritable.get(), marketIndex);
+            }
+        }
+    	
+    	private void fillMarketIndexData(String[] tokens, MarketIndex marketIndex) {
+    		
+				String[] tokenName = tokens[0].split("'");
+				marketIndex.setName(tokenName[1]);
+				String[] tokenNumber = tokens[1].split("=");
+				marketIndex.setDate(Long.parseLong(tokenNumber[1]));
+				tokenNumber = tokens[2].split("=");
+				marketIndex.setClosingValue(Float.parseFloat(tokenNumber[1]));
+				tokenNumber = tokens[3].split("=");
+				marketIndex.setDailyVariation(Float.parseFloat(tokenNumber[1]));
+				tokenNumber = tokens[4].split("=");
+				marketIndex.setOpeningValue(Float.parseFloat(tokenNumber[1]));
+				tokenNumber = tokens[5].split("=");
+				marketIndex.setHigherValue(Float.parseFloat(tokenNumber[1]));
+				tokenNumber = tokens[6].split("=");
+				marketIndex.setLowerValue(Float.parseFloat(tokenNumber[1]));
+				tokenNumber = tokens[7].split("=");
+				marketIndex.setAnnualVariation(Float.parseFloat(tokenNumber[1]));
+				tokenNumber = tokens[8].split("=");
+				String[] tokenCapitalization = tokenNumber[1].split("}");
+				marketIndex.setCapitalization(Integer.parseInt(tokenCapitalization[0]));
+		}
+    }
+    
+    
     public static class StockChangeTopKMapper
             extends Mapper<Object, Text, NullWritable, MarketIndex> {
         public int k = 10;
@@ -57,7 +113,7 @@ public class StockChangeAnalysis {
             String fileName = ((FileSplit) context.getInputSplit()).getPath().getName();
             Date date = convertDate(fileName);
             MarketIndex marketIndex = new MarketIndex();
-            marketIndex.setDate(date);
+            marketIndex.setDate(date.getTime());
             String toParse = value.toString();
             String[] tokens = toParse.split("\n");
             if ((tokens.length >= 2) && tokens[1].contains("tdv-var")) {
@@ -95,7 +151,7 @@ public class StockChangeAnalysis {
             String fileName = ((FileSplit) context.getInputSplit()).getPath().getName();
             Date date = convertDate(fileName);
             MarketIndex marketIndex = new MarketIndex();
-            marketIndex.setDate(date);
+            marketIndex.setDate(date.getTime());
             String toParse = value.toString();
             String[] tokens = toParse.split("\n");
             if ((tokens.length >= 2) && tokens[1].contains("tdv-var")) {
@@ -206,7 +262,7 @@ public class StockChangeAnalysis {
         Job job = Job.getInstance(conf, "MonProg");
         job.setNumReduceTasks(1);
         job.setJarByClass(StockChangeAnalysis.class);
-        job.setInputFormatClass(HtmlInputFormat.class);
+        //job.setInputFormatClass(HtmlInputFormat.class);
         job.setOutputFormatClass(TextOutputFormat.class);
         //FileInputFormat.addInputPath(job, new Path(args[0]));
         //FileOutputFormat.setOutputPath(job, new Path(args[1]));
@@ -218,12 +274,8 @@ public class StockChangeAnalysis {
         }
         int returnCode = 0;
         switch (commande) {
-            case "clean":
-                //job.setMapperClass(CitiesWithPopMapper.class);
-                //job.setReducerClass(MaxReduce.class);
-                //returnCode = job.waitForCompletion(true) ? 0 : 1;
-                break;
             case "parsing":
+            	job.setInputFormatClass(HtmlInputFormat.class);
                 job.setMapperClass(StockChangeAnalysisMapper.class);
                 job.setMapOutputKeyClass(IntWritable.class);
                 job.setMapOutputValueClass(MarketIndex.class);
@@ -233,7 +285,8 @@ public class StockChangeAnalysis {
                 returnCode = job.waitForCompletion(true) ? 0 : 1;
                 break;
             case "topK":
-                job.setMapperClass(StockChangeTopKMapper.class);
+            	job.setInputFormatClass(TextInputFormat.class);
+                job.setMapperClass(StockChangeTopKMapperB.class);
                 job.setMapOutputKeyClass(NullWritable.class);
                 job.setMapOutputValueClass(MarketIndex.class);
                 job.setReducerClass(StockChangeTopKReducer.class);

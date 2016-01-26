@@ -3,21 +3,20 @@ import org.apache.hadoop.io.Writable;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.util.Date;
 
 public class MarketIndex implements Writable {
 
     private String name;
-    public Date date;
-    public float closingValue;
-    public float dailyVariation;
-    public float openingValue;
-    public float higherValue;
-    public float lowerValue;
-    public float annualVariation;
-    public int capitalization;
+    private long date;
+    private float closingValue;
+    private float dailyVariation;
+    private float openingValue;
+    private float higherValue;
+    private float lowerValue;
+    private float annualVariation;
+    private int capitalization;
 
-    public MarketIndex(String name, Date date, float closingValue, float dailyVariation, float openingValue, float higherValue, float lowerValue, float annualVariation, int capitalization) {
+    public MarketIndex(String name, long date, float closingValue, float dailyVariation, float openingValue, float higherValue, float lowerValue, float annualVariation, int capitalization) {
         this.name = name;
         this.date = date;
         this.closingValue = closingValue;
@@ -47,7 +46,7 @@ public class MarketIndex implements Writable {
     @Override
     public void write(DataOutput dataOutput) throws IOException {
         dataOutput.writeUTF(name);
-        dataOutput.writeLong(date.getTime());
+        dataOutput.writeLong(date);
         dataOutput.writeFloat(closingValue);
         dataOutput.writeFloat(dailyVariation);
         dataOutput.writeFloat(openingValue);
@@ -61,7 +60,7 @@ public class MarketIndex implements Writable {
     public void readFields(DataInput dataInput) throws IOException {
         if (dataInput != null) {
             name = dataInput.readUTF();
-            date = new Date(dataInput.readLong());
+            date = dataInput.readLong();
             closingValue = dataInput.readFloat();
             dailyVariation = dataInput.readFloat();
             openingValue = dataInput.readFloat();
@@ -80,11 +79,11 @@ public class MarketIndex implements Writable {
         this.name = name;
     }
 
-    public Date getDate() {
+    public long getDate() {
         return date;
     }
 
-    public void setDate(Date date) {
+    public void setDate(long date) {
         this.date = date;
     }
 
