@@ -15,6 +15,7 @@ import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
+import org.apache.hadoop.mapreduce.lib.chain.ChainMapper;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 import org.apache.hadoop.mapreduce.lib.input.FileSplit;
@@ -241,7 +242,6 @@ public class StockChangeAnalysis {
                     result.setMaxVar(val.getMaxVar());
                 }
             }
-            System.out.println(key + " " + result);
             context.write(key, result);
         }
     }
@@ -249,7 +249,7 @@ public class StockChangeAnalysis {
 /*                Correlation                              */
 
 
-    public static class CorrelationMapper extends Mapper<Object, Text, LongWritable, MarketIndex> {
+    public static class BestAndWorstMapper extends Mapper<Object, Text, LongWritable, MarketIndex> {
         public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
             MarketIndex marketIndex = new MarketIndex();
             String toParse = value.toString();
@@ -263,7 +263,7 @@ public class StockChangeAnalysis {
         }
     }
 
-    public static class CorrelationCombiner extends Reducer<LongWritable, MarketIndex, LongWritable, Extrema> {
+    public static class BestAndWorstReducer extends Reducer<LongWritable, MarketIndex, Text, Text> {
         public void reduce(LongWritable key, Iterable<MarketIndex> values, Context context) throws IOException, InterruptedException {
             Extrema extrema = new Extrema();
             for (MarketIndex val : values) {
@@ -274,18 +274,18 @@ public class StockChangeAnalysis {
                     extrema.setWorst(new MarketIndex(val));
                 }
             }
-            context.write(key, extrema);
+            context.write(new Text(extrema.getBest().getName() + "+"), new Text(extrema.getWorst().getName()));
         }
     }
 
-    /*
+
     public static class CorrelationReducer extends Reducer<LongWritable, Extrema, LongWritable, Extrema> {
         public void reduce(LongWritable key, Iterable<Extrema> values, Context context) throws IOException, InterruptedException {
             for (Extrema val : values) {
                 context.write(key, val);
             }
         }
-    }*/
+    }
 
 
     public static void main(String[] args) throws Exception {
@@ -364,15 +364,13 @@ public class StockChangeAnalysis {
             case "corre":
                 job.setInputFormatClass(TextInputFormat.class);
 
-                job.setMapperClass(CorrelationMapper.class);
+                job.setMapperClass(BestAndWorstMapper.class);
                 job.setMapOutputKeyClass(LongWritable.class);
                 job.setMapOutputValueClass(MarketIndex.class);
 
-                job.setReducerClass(CorrelationCombiner.class);
-
-                //job.setReducerClass(CorrelationReducer.class);
-                job.setOutputKeyClass(LongWritable.class);
-                job.setOutputValueClass(Extrema.class);
+                job.setReducerClass(BestAndWorstReducer.class);
+                job.setOutputKeyClass(Text.class);
+                job.setOutputValueClass(Text.class);
 
                 returnCode = job.waitForCompletion(true) ? 0 : 1;
                 break;

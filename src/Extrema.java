@@ -37,10 +37,7 @@ public class Extrema implements Writable{
 
     @Override
     public String toString() {
-        return "Extrema{" +
-                "best=" + best +
-                ", worst=" + worst +
-                '}';
+        return best.getName() + "+" + worst.getName();
     }
 
     @Override
