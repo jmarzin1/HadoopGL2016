@@ -49,7 +49,7 @@ public class StockChangeAnalysis {
 
     public static class StockChangeTopKMapperB
     extends Mapper<Object, Text, NullWritable, MarketIndex> {
-    	private TreeMap<Integer, MarketIndex> topKMarketIndexes = new TreeMap<>();
+    	private TreeMap<Text, MarketIndex> topKMarketIndexes = new TreeMap<>();
     	private int k = 10;
     	
     	public void map(Object key, Text value, Context context
@@ -63,9 +63,18 @@ public class StockChangeAnalysis {
     		} else {
     			return;
     		}
-    		topKMarketIndexes.put(marketIndex.getCapitalization(), marketIndex);
-            if (topKMarketIndexes.size() > k) {
-                topKMarketIndexes.remove(topKMarketIndexes.firstKey());
+            Text marketIndexN = new Text(marketIndex.getName());
+            if (!topKMarketIndexes.containsKey(marketIndexN)) {
+                topKMarketIndexes.put(marketIndexN, marketIndex);
+                if (topKMarketIndexes.size() > k) {
+                    topKMarketIndexes.remove(topKMarketIndexes.firstKey());
+                }
+            } else {
+                MarketIndex tmpMarketIndex = topKMarketIndexes.get(marketIndexN);
+                if (tmpMarketIndex.getCapitalization() < marketIndex.getCapitalization()) {
+                    topKMarketIndexes.remove(new Text(tmpMarketIndex.getName()));
+                    topKMarketIndexes.put(marketIndexN, marketIndex);
+                }
             }
     	}
 
@@ -77,29 +86,7 @@ public class StockChangeAnalysis {
                 context.write(NullWritable.get(), marketIndex);
             }
         }
-    	
-    	private void fillMarketIndexData(String[] tokens, MarketIndex marketIndex) {
-    		
-				String[] tokenName = tokens[0].split("'");
-				marketIndex.setName(tokenName[1]);
-				String[] tokenNumber = tokens[1].split("=");
-				marketIndex.setDate(Long.parseLong(tokenNumber[1]));
-				tokenNumber = tokens[2].split("=");
-				marketIndex.setClosingValue(Float.parseFloat(tokenNumber[1]));
-				tokenNumber = tokens[3].split("=");
-				marketIndex.setDailyVariation(Float.parseFloat(tokenNumber[1]));
-				tokenNumber = tokens[4].split("=");
-				marketIndex.setOpeningValue(Float.parseFloat(tokenNumber[1]));
-				tokenNumber = tokens[5].split("=");
-				marketIndex.setHigherValue(Float.parseFloat(tokenNumber[1]));
-				tokenNumber = tokens[6].split("=");
-				marketIndex.setLowerValue(Float.parseFloat(tokenNumber[1]));
-				tokenNumber = tokens[7].split("=");
-				marketIndex.setAnnualVariation(Float.parseFloat(tokenNumber[1]));
-				tokenNumber = tokens[8].split("=");
-				String[] tokenCapitalization = tokenNumber[1].split("}");
-				marketIndex.setCapitalization(Integer.parseInt(tokenCapitalization[0]));
-		}
+
     }
     
     
@@ -147,6 +134,7 @@ public class StockChangeAnalysis {
     public static class MinMaxCountMapper extends Mapper<Object, Text, Text, MinMaxTuple> {
         private Text outUserId = new Text();
         private MinMaxTuple outminMaxTuple = new MinMaxTuple();
+
         public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
             String fileName = ((FileSplit) context.getInputSplit()).getPath().getName();
             Date date = convertDate(fileName);
@@ -171,38 +159,40 @@ public class StockChangeAnalysis {
         }
     }
 
-
-    public static class MinMaxCountReducer extends Reducer<Text, MinMaxTuple, Text, MinMaxTuple> {
-        private MinMaxTuple result = new MinMaxTuple();
-
-        public void reduce(Text key, Iterable<MinMaxTuple> values,
-                           Context context) throws IOException, InterruptedException {
-            result.setMinVar(0);
-            result.setMaxVar(0);
-            for (MinMaxTuple val : values) {
-                if (val.getMinVar() < (result.getMinVar())) {
-                    result.setMinVar(val.getMinVar());
+    /*
+    public static class CorrelationMapper extends Mapper<Object, Text, Text, MarketIndex> {
+        public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
+            String fileName = ((FileSplit) context.getInputSplit()).getPath().getName();
+            Date date = convertDate(fileName);
+            MarketIndex marketIndex = new MarketIndex();
+            marketIndex.setDate(date);
+            String toParse = value.toString();
+            String[] tokens = toParse.split("\n");
+            if ((tokens.length >= 2) && tokens[1].contains("tdv-var")) {
+                int i = 2;
+                while (!tokens[i].contains("</tr>")) {
+                    String[] lineTokens = tokens[i].split(">");
+                    parseLine(lineTokens, marketIndex);
+                    i++;
                 }
-                if (val.getMaxVar() > result.getMaxVar()) {
-                    result.setMaxVar(val.getMaxVar());
-                }
+            } else {
+                return;
             }
-            System.out.println(key + " " + result);
-            context.write(key, result);
+            context.write(new Text(marketIndex.getDate().toString()), marketIndex);
         }
     }
 
-
-
-    /*public static class StockChangeAnalysisCombiner extends Reducer<IntWritable, Writable, IntWritable, Writable> {
-        public void reduce(IntWritable key, Iterable<IntWritable> values,Context context) throws IOException, InterruptedException {
+    public static class CorrelationMapper2 extends Mapper<Text, MarketIndex, Text, MarketIndex> {
+        public void reduce(IntWritable key, Iterable<MarketIndex> values, Context context) throws IOException, InterruptedException {
             int sum = 0;
             for (IntWritable val : values) {
                 sum += val.get();
             }
             context.write(key, new IntWritable(sum));
         }
-    }*/
+    }
+*/
+
 
     public static class StockChangeAnalysisReducer
             extends Reducer<IntWritable, MarketIndex, IntWritable, MarketIndex> {
@@ -240,9 +230,7 @@ public class StockChangeAnalysis {
                         topKMarketIndexes.remove(tmpCapitalization);
                         topKMarketIndexes.put(value.getCapitalization(), marketIndexN);
                     }
-                    if (topKMarketIndexes.size() > k) {
-                        topKMarketIndexes.remove(topKMarketIndexes.firstKey());
-                    }
+
                 }
             }
             for (Text marketIndexName : topKMarketIndexes.descendingMap().values()) {
@@ -251,6 +239,27 @@ public class StockChangeAnalysis {
 
         }
     }
+
+    public static class MinMaxCountReducer extends Reducer<Text, MinMaxTuple, Text, MinMaxTuple> {
+        private MinMaxTuple result = new MinMaxTuple();
+
+        public void reduce(Text key, Iterable<MinMaxTuple> values,
+                           Context context) throws IOException, InterruptedException {
+            result.setMinVar(0);
+            result.setMaxVar(0);
+            for (MinMaxTuple val : values) {
+                if (val.getMinVar() < (result.getMinVar())) {
+                    result.setMinVar(val.getMinVar());
+                }
+                if (val.getMaxVar() > result.getMaxVar()) {
+                    result.setMaxVar(val.getMaxVar());
+                }
+            }
+            System.out.println(key + " " + result);
+            context.write(key, result);
+        }
+    }
+
 
 
     public static void main(String[] args) throws Exception {
@@ -276,31 +285,39 @@ public class StockChangeAnalysis {
         switch (commande) {
             case "parsing":
             	job.setInputFormatClass(HtmlInputFormat.class);
+
                 job.setMapperClass(StockChangeAnalysisMapper.class);
                 job.setMapOutputKeyClass(IntWritable.class);
                 job.setMapOutputValueClass(MarketIndex.class);
+
                 job.setReducerClass(StockChangeAnalysisReducer.class);
                 job.setOutputKeyClass(IntWritable.class);
                 job.setOutputValueClass(MarketIndex.class);
+
                 returnCode = job.waitForCompletion(true) ? 0 : 1;
                 break;
             case "topK":
             	job.setInputFormatClass(TextInputFormat.class);
+
                 job.setMapperClass(StockChangeTopKMapperB.class);
                 job.setMapOutputKeyClass(NullWritable.class);
                 job.setMapOutputValueClass(MarketIndex.class);
+
                 job.setReducerClass(StockChangeTopKReducer.class);
                 job.setOutputKeyClass(NullWritable.class);
                 job.setOutputValueClass(Text.class);
+
                 returnCode = job.waitForCompletion(true) ? 0 : 1;
                 break;
             case "minMax":
                 job.setMapperClass(MinMaxCountMapper.class);
                 job.setMapOutputKeyClass(Text.class);
                 job.setMapOutputValueClass(MinMaxTuple.class);
+
                 job.setReducerClass(MinMaxCountReducer.class);
                 job.setOutputKeyClass(Text.class);
                 job.setOutputValueClass(MinMaxTuple.class);
+
                 returnCode = job.waitForCompletion(true) ? 0 : 1;
                 break;
             default:
@@ -365,6 +382,29 @@ public class StockChangeAnalysis {
             }
             scan.close();
         }
+    }
+
+    public static void fillMarketIndexData(String[] tokens, MarketIndex marketIndex) {
+
+        String[] tokenName = tokens[0].split("'");
+        marketIndex.setName(tokenName[1]);
+        String[] tokenNumber = tokens[1].split("=");
+        marketIndex.setDate(Long.parseLong(tokenNumber[1]));
+        tokenNumber = tokens[2].split("=");
+        marketIndex.setClosingValue(Float.parseFloat(tokenNumber[1]));
+        tokenNumber = tokens[3].split("=");
+        marketIndex.setDailyVariation(Float.parseFloat(tokenNumber[1]));
+        tokenNumber = tokens[4].split("=");
+        marketIndex.setOpeningValue(Float.parseFloat(tokenNumber[1]));
+        tokenNumber = tokens[5].split("=");
+        marketIndex.setHigherValue(Float.parseFloat(tokenNumber[1]));
+        tokenNumber = tokens[6].split("=");
+        marketIndex.setLowerValue(Float.parseFloat(tokenNumber[1]));
+        tokenNumber = tokens[7].split("=");
+        marketIndex.setAnnualVariation(Float.parseFloat(tokenNumber[1]));
+        tokenNumber = tokens[8].split("=");
+        String[] tokenCapitalization = tokenNumber[1].split("}");
+        marketIndex.setCapitalization(Integer.parseInt(tokenCapitalization[0]));
     }
 
     public static Date convertDate(String fileName) {
