@@ -1,5 +1,6 @@
 import java.io.IOException;
 import java.util.Date;
+import java.util.Map;
 import java.util.Scanner;
 import java.util.TreeMap;
 import java.util.regex.MatchResult;
@@ -37,8 +38,7 @@ public class StockChangeAnalysis {
                     parseLine(lineTokens, marketIndex);
                     i++;
                 }
-            }
-            else {
+            } else {
                 return;
             }
             context.write(NullWritable.get(), marketIndex);
@@ -54,8 +54,8 @@ public class StockChangeAnalysis {
 
         public void map(Object key, Text value, Context context
         ) throws IOException, InterruptedException {
-        	String fileName = ((FileSplit) context.getInputSplit()).getPath().getName();
-        	Date date = convertDate(fileName);
+            String fileName = ((FileSplit) context.getInputSplit()).getPath().getName();
+            Date date = convertDate(fileName);
             MarketIndex marketIndex = new MarketIndex();
             marketIndex.setDate(date);
             String toParse = value.toString();
@@ -67,12 +67,11 @@ public class StockChangeAnalysis {
                     parseLine(lineTokens, marketIndex);
                     i++;
                 }
+            } else {
+                return;
             }
-            else {
-            	return;
-        	}
             topKMarketIndexes.put(marketIndex.getCapitalization(), marketIndex);
-            if (topKMarketIndexes.size() > k){
+            if (topKMarketIndexes.size() > k) {
                 topKMarketIndexes.remove(topKMarketIndexes.firstKey());
             }
         }
@@ -100,33 +99,51 @@ public class StockChangeAnalysis {
 
     public static class StockChangeAnalysisReducer
             extends Reducer<IntWritable, MarketIndex, IntWritable, MarketIndex> {
-    	public void reduce(IntWritable key, Iterable<MarketIndex> values,
+        public void reduce(IntWritable key, Iterable<MarketIndex> values,
                            Context context
         ) throws IOException, InterruptedException {
-    		for (MarketIndex value : values) {
-    			context.write(key, value);
-    		}
+            for (MarketIndex value : values) {
+                context.write(key, value);
+            }
         }
     }
-    
-    public static class StockChangeTopKReducer extends Reducer<NullWritable, MarketIndex, NullWritable, MarketIndex> {
-		public int k = 10;
-		private TreeMap<Integer, MarketIndex> topKMarketIndexes = new TreeMap<Integer, MarketIndex>();
-		@Override
-		public void reduce(NullWritable key, Iterable<MarketIndex> values,	Context context) throws IOException, InterruptedException {
-			for (MarketIndex value : values) {
-				// Former bug here: need to copy the 'value' instance
-				topKMarketIndexes.put(value.getCapitalization(), new MarketIndex(value));
-				if (topKMarketIndexes.size() > k) {
-					topKMarketIndexes.remove(topKMarketIndexes.firstKey());
-				}
-			}
-			for (MarketIndex mi : topKMarketIndexes.descendingMap().values()) {
-                System.out.println(mi);
-				context.write(key, mi);
-			}
-		}
-	}
+
+    public static class StockChangeTopKReducer extends Reducer<NullWritable, MarketIndex, NullWritable, Text> {
+        public int k = 10;
+        private TreeMap<Integer, Text> topKMarketIndexes = new TreeMap<>();
+
+        @Override
+        public void reduce(NullWritable key, Iterable<MarketIndex> values, Context context) throws IOException, InterruptedException {
+            for (MarketIndex value : values) {
+                // Former bug here: need to copy the 'value' instance
+                Text marketIndexN = new Text(value.getName());
+                if (!topKMarketIndexes.containsValue(marketIndexN)) {
+                    topKMarketIndexes.put(value.getCapitalization(), new Text(marketIndexN));
+                    if (topKMarketIndexes.size() > k) {
+                        topKMarketIndexes.remove(topKMarketIndexes.firstKey());
+                    }
+                } else {
+                    int tmpCapitalization = 0;
+                    for (Map.Entry<Integer, Text> entry : topKMarketIndexes.entrySet()) {
+                        if (entry.getValue().equals(marketIndexN)) {
+                            tmpCapitalization = entry.getKey();
+                        }
+                    }
+                    if (tmpCapitalization < value.getCapitalization()) {
+                        topKMarketIndexes.remove(tmpCapitalization);
+                        topKMarketIndexes.put(value.getCapitalization(), marketIndexN);
+                    }
+                    if (topKMarketIndexes.size() > k) {
+                        topKMarketIndexes.remove(topKMarketIndexes.firstKey());
+                    }
+                }
+            }
+            for (Text marketIndexName : topKMarketIndexes.descendingMap().values()) {
+                context.write(key, marketIndexName);
+            }
+
+        }
+    }
 
     public static void main(String[] args) throws Exception {
         Configuration conf = new Configuration();
@@ -142,7 +159,7 @@ public class StockChangeAnalysis {
         job.setMapOutputValueClass(MarketIndex.class);
         job.setReducerClass(StockChangeTopKReducer.class);
         job.setOutputKeyClass(NullWritable.class);
-        job.setOutputValueClass(MarketIndex.class);
+        job.setOutputValueClass(Text.class);
         job.setInputFormatClass(HtmlInputFormat.class);
         job.setOutputFormatClass(TextOutputFormat.class);
         FileInputFormat.addInputPath(job, new Path(args[0]));
@@ -171,20 +188,20 @@ public class StockChangeAnalysis {
                     break;
                 case "tdv-open":
                     localTokens = lineTokens[3].split("<");
-                    if(!localTokens[0].equals("ND")) {
-                        marketIndex.setOpeningValue(Float.parseFloat(localTokens[0].replaceAll("\\s+","")));
+                    if (!localTokens[0].equals("ND")) {
+                        marketIndex.setOpeningValue(Float.parseFloat(localTokens[0].replaceAll("\\s+", "")));
                     }
                     break;
                 case "tdv-high":
                     localTokens = lineTokens[3].split("<");
-                    if(!localTokens[0].equals("ND")) {
-                        marketIndex.setHigherValue(Float.parseFloat(localTokens[0].replaceAll("\\s+","")));
+                    if (!localTokens[0].equals("ND")) {
+                        marketIndex.setHigherValue(Float.parseFloat(localTokens[0].replaceAll("\\s+", "")));
                     }
                     break;
                 case "tdv-low":
                     localTokens = lineTokens[3].split("<");
-                    if(!localTokens[0].equals("ND")) {
-                        marketIndex.setLowerValue(Float.parseFloat(localTokens[0].replaceAll("\\s+","")));
+                    if (!localTokens[0].equals("ND")) {
+                        marketIndex.setLowerValue(Float.parseFloat(localTokens[0].replaceAll("\\s+", "")));
                     }
                     break;
                 case "tdv-var_an":
@@ -193,7 +210,7 @@ public class StockChangeAnalysis {
                     break;
                 case "tdv-tot_volume":
                     localTokens = lineTokens[2].split("<");
-                    int volumeTotal = Integer.parseInt(localTokens[0].replaceAll("\\s+",""));
+                    int volumeTotal = Integer.parseInt(localTokens[0].replaceAll("\\s+", ""));
                     marketIndex.setCapitalization(volumeTotal);
                     break;
                 default:
@@ -209,7 +226,7 @@ public class StockChangeAnalysis {
         Scanner scan = new Scanner(fileName);
         if (scan.findInLine(pattern) != null) {
             MatchResult matchResult = scan.match();
-            timestamp = Long.parseLong(matchResult.group(0))*1000;
+            timestamp = Long.parseLong(matchResult.group(0)) * 1000;
             scan.close();
         }
         return new Date(timestamp);
