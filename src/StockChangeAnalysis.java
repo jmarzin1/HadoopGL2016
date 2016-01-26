@@ -1,5 +1,6 @@
 import java.io.IOException;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Scanner;
 import java.util.TreeMap;
@@ -49,7 +50,9 @@ public class StockChangeAnalysis {
 
     public static class StockChangeTopKMapperB
     extends Mapper<Object, Text, NullWritable, MarketIndex> {
-    	private TreeMap<Text, MarketIndex> topKMarketIndexes = new TreeMap<>();
+    	private TreeMap<Integer, MarketIndex> topKMarketIndexes = new TreeMap<>();
+    	private HashMap<String, Integer> converter = new HashMap<>();
+    	
     	private int k = 10;
     	
     	public void map(Object key, Text value, Context context
@@ -63,17 +66,18 @@ public class StockChangeAnalysis {
     		} else {
     			return;
     		}
-            Text marketIndexN = new Text(marketIndex.getName());
-            if (!topKMarketIndexes.containsKey(marketIndexN)) {
-                topKMarketIndexes.put(marketIndexN, marketIndex);
+            if (converter.get(marketIndex.getName()) == null) {
+                topKMarketIndexes.put(marketIndex.getCapitalization(), marketIndex);
+                converter.put(marketIndex.getName(), marketIndex.getCapitalization());
                 if (topKMarketIndexes.size() > k) {
                     topKMarketIndexes.remove(topKMarketIndexes.firstKey());
                 }
             } else {
-                MarketIndex tmpMarketIndex = topKMarketIndexes.get(marketIndexN);
-                if (tmpMarketIndex.getCapitalization() < marketIndex.getCapitalization()) {
-                    topKMarketIndexes.remove(new Text(tmpMarketIndex.getName()));
-                    topKMarketIndexes.put(marketIndexN, marketIndex);
+                Integer tmpCapitalization = converter.get(marketIndex.getName());
+                if (tmpCapitalization < marketIndex.getCapitalization()) {
+                    topKMarketIndexes.remove(converter.get(marketIndex.getName()));
+                    topKMarketIndexes.put(marketIndex.getCapitalization(), marketIndex);
+                    converter.put(marketIndex.getName(), marketIndex.getCapitalization());
                 }
             }
     	}
