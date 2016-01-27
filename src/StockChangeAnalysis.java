@@ -71,9 +71,15 @@ public class StockChangeAnalysis {
 
     public static class StockChangeTopKMapper
             extends Mapper<Object, Text, NullWritable, MarketIndex> {
-        public int k = 10;
+        public int k = 0;
         private TreeMap<Integer, MarketIndex> topKMarketIndexes = new TreeMap<>();
 
+        @Override
+		public void setup(Context context) {
+			Configuration conf = context.getConfiguration();
+			k = conf.getInt("k", 10);
+		}
+        
         public void map(Object key, Text value, Context context
         ) throws IOException, InterruptedException {
             String fileName = ((FileSplit) context.getInputSplit()).getPath().getName();
@@ -119,8 +125,14 @@ public class StockChangeAnalysis {
         private TreeMap<Integer, MarketIndex> topKMarketIndexes = new TreeMap<>();
         private HashMap<String, Integer> converter = new HashMap<>();
 
-        private int k = 10;
-
+        public int k = 0;
+        
+        @Override
+		public void setup(Context context) {
+			Configuration conf = context.getConfiguration();
+			k = conf.getInt("k", 10);
+		}
+        
         public void map(Object key, Text value, Context context
         ) throws IOException, InterruptedException {
 
@@ -160,9 +172,15 @@ public class StockChangeAnalysis {
     }
 
     public static class StockChangeTopKReducer extends Reducer<NullWritable, MarketIndex, NullWritable, Text> {
-        public int k = 10;
+        public int k = 0;
         private TreeMap<Integer, Text> topKMarketIndexes = new TreeMap<>();
-
+        
+        @Override
+		public void setup(Context context) {
+			Configuration conf = context.getConfiguration();
+			k = conf.getInt("k", 10);
+		}
+        
         @Override
         public void reduce(NullWritable key, Iterable<MarketIndex> values, Context context) throws IOException, InterruptedException {
             for (MarketIndex value : values) {
@@ -286,7 +304,12 @@ public class StockChangeAnalysis {
             String[] tokens = toParse.split("#");
             String result="";
             if (tokens.length > 2) {
-            	result= tokens[0] + " " + tokens[2];
+            	if (tokens[0].compareTo(tokens[2]) > 0) {
+            		result= tokens[0] + " " + tokens[2];
+            	}
+            	else {
+            		result= tokens[2] + " " + tokens[0];
+            	}
             }
             context.write(new Text(result), new IntWritable(1));
         }
@@ -313,10 +336,7 @@ public class StockChangeAnalysis {
         Job job = Job.getInstance(conf, "MonProg");
         job.setNumReduceTasks(1);
         job.setJarByClass(StockChangeAnalysis.class);
-        //job.setInputFormatClass(HtmlInputFormat.class);
         job.setOutputFormatClass(TextOutputFormat.class);
-        //FileInputFormat.addInputPath(job, new Path(args[0]));
-        //FileOutputFormat.setOutputPath(job, new Path(args[1]));
         String commande = "";
         if (args.length > 2) {
             commande = args[0];
@@ -339,6 +359,9 @@ public class StockChangeAnalysis {
                 returnCode = job.waitForCompletion(true) ? 0 : 1;
                 break;
             case "topK":
+            	if (args.length > 2) {
+            		conf.setInt("k", Integer.parseInt(args[3]));
+            	}
                 job.setInputFormatClass(TextInputFormat.class);
 
                 job.setMapperClass(StockChangeTopKMapperB.class);
@@ -352,6 +375,9 @@ public class StockChangeAnalysis {
                 returnCode = job.waitForCompletion(true) ? 0 : 1;
                 break;
             case "topKWithoutParsing":
+            	if (args.length > 2) {
+            		conf.setInt("k", Integer.parseInt(args[3]));
+            	}
                 job.setInputFormatClass(HtmlInputFormat.class);
 
                 job.setMapperClass(StockChangeTopKMapper.class);
