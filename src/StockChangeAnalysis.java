@@ -295,7 +295,23 @@ public class StockChangeAnalysis {
         }
     }
 
-    /*               MiniCorrelation                              */
+    public static class BestAndWorstManyReducer extends Reducer<LongWritable, MarketIndex, Text, Text> {
+        public void reduce(LongWritable key, Iterable<MarketIndex> values, Context context) throws IOException, InterruptedException {
+            Extremas extremas = new Extremas(3);
+            for (MarketIndex val : values) {
+                extremas.addBest(val.getDailyVariation(), val.getName());
+                extremas.addWorst(val.getDailyVariation(), val.getName());
+            }
+            for (Map.Entry<Float,String>entry : extremas.getBest().entrySet()){
+                for (Map.Entry<Float,String>entry2 : extremas.getWorst().entrySet()){
+                    context.write(new Text(entry.getValue() + "# "), new Text(" #" + entry2.getValue()));
+                }
+
+            }
+        }
+    }
+
+    /*               BestAndWorstCount                              */
 
 
     public static class BestAndWorstCountMapper extends Mapper<Object, Text, Text, IntWritable> {
@@ -410,7 +426,7 @@ public class StockChangeAnalysis {
                 job.setMapOutputKeyClass(LongWritable.class);
                 job.setMapOutputValueClass(MarketIndex.class);
 
-                job.setReducerClass(BestAndWorstReducer.class);
+                job.setReducerClass(BestAndWorstManyReducer.class);
                 job.setOutputKeyClass(Text.class);
                 job.setOutputValueClass(Text.class);
 
