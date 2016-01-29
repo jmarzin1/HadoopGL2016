@@ -117,7 +117,7 @@ public class StockChangeAnalysis {
     /*                  TOP K  (WITH PREPARSING)             */
 
 
-    public static class StockChangeTopKMapperB
+    public static class StockChangeTopKMapperFromCleanFile
             extends Mapper<Object, Text, NullWritable, MarketIndex> {
         private TreeMap<Integer, MarketIndex> topKMarketIndexes = new TreeMap<>();
         private HashMap<String, Integer> converter = new HashMap<>();
@@ -363,7 +363,7 @@ public class StockChangeAnalysis {
             case "topK":
                 job.setInputFormatClass(TextInputFormat.class);
 
-                job.setMapperClass(StockChangeTopKMapperB.class);
+                job.setMapperClass(StockChangeTopKMapperFromCleanFile.class);
                 job.setMapOutputKeyClass(NullWritable.class);
                 job.setMapOutputValueClass(MarketIndex.class);
 
