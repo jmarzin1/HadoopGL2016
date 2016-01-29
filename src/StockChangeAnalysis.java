@@ -77,7 +77,7 @@ public class StockChangeAnalysis {
 			Configuration conf = context.getConfiguration();
 			k = conf.getInt("k", 10);
 		}
-        
+
         public void map(Object key, Text value, Context context
         ) throws IOException, InterruptedException {
             String fileName = ((FileSplit) context.getInputSplit()).getPath().getName();
@@ -123,13 +123,13 @@ public class StockChangeAnalysis {
         private HashMap<String, Integer> converter = new HashMap<>();
 
         public int k = 0;
-        
+
         @Override
 		public void setup(Context context) {
 			Configuration conf = context.getConfiguration();
 			k = conf.getInt("k", 10);
 		}
-        
+
         public void map(Object key, Text value, Context context
         ) throws IOException, InterruptedException {
 
@@ -170,13 +170,13 @@ public class StockChangeAnalysis {
     public static class StockChangeTopKReducer extends Reducer<NullWritable, MarketIndex, NullWritable, Text> {
         public int k = 0;
         private TreeMap<Integer, Text> topKMarketIndexes = new TreeMap<>();
-        
+
         @Override
 		public void setup(Context context) {
 			Configuration conf = context.getConfiguration();
-			k = conf.getInt("k", 10);
-		}
-        
+            k = conf.getInt("k", 10);
+        }
+
         @Override
         public void reduce(NullWritable key, Iterable<MarketIndex> values, Context context) throws IOException, InterruptedException {
             for (MarketIndex value : values) {
@@ -200,9 +200,6 @@ public class StockChangeAnalysis {
                     }
 
                 }
-            }
-            for (Map.Entry<Integer, Text> entry : topKMarketIndexes.entrySet()) {
-                System.out.println(entry.getValue() + " " + entry.getKey());
             }
             for (Text marketIndexName : topKMarketIndexes.descendingMap().values()) {
                 context.write(key, marketIndexName);
@@ -334,6 +331,10 @@ public class StockChangeAnalysis {
         conf.set("htmlinput.start", "<tr");
         conf.set("htmlinput.end", "</tr>");
 
+        if (args.length > 3) {
+            conf.setInt("k", Integer.parseInt(args[3]));
+        }
+
         Job job = Job.getInstance(conf, "StockChangeAnalysis");
         job.setNumReduceTasks(1);
         job.setJarByClass(StockChangeAnalysis.class);
@@ -360,10 +361,6 @@ public class StockChangeAnalysis {
                 returnCode = job.waitForCompletion(true) ? 0 : 1;
                 break;
             case "topK":
-            	if (args.length > 2) {
-            		conf.setInt("k", Integer.parseInt(args[3]));
-                    System.out.println(Integer.parseInt(args[3]));
-            	}
                 job.setInputFormatClass(TextInputFormat.class);
 
                 job.setMapperClass(StockChangeTopKMapperB.class);
@@ -377,9 +374,6 @@ public class StockChangeAnalysis {
                 returnCode = job.waitForCompletion(true) ? 0 : 1;
                 break;
             case "topKWithoutParsing":
-            	if (args.length > 2) {
-            		conf.setInt("k", Integer.parseInt(args[3]));
-            	}
                 job.setInputFormatClass(HtmlInputFormat.class);
 
                 job.setMapperClass(StockChangeTopKMapper.class);
@@ -524,7 +518,7 @@ public class StockChangeAnalysis {
         String[] tokenDailyExchangeVolume = tokenNumber[1].split("}");
         marketIndex.setDailyExchangeVolume(Integer.parseInt(tokenDailyExchangeVolume[0]));
     }
-    
+
     public static Date convertDate(String fileName) {
         String pattern = "([0-9]+)";
         long timestamp = 0;
