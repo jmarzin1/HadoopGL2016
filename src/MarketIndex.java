@@ -14,9 +14,9 @@ public class MarketIndex implements Writable {
     private float higherValue;
     private float lowerValue;
     private float annualVariation;
-    private int capitalization;
+    private int dailyExchangeVolume;
 
-    public MarketIndex(String name, long date, float closingValue, float dailyVariation, float openingValue, float higherValue, float lowerValue, float annualVariation, int capitalization) {
+    public MarketIndex(String name, long date, float closingValue, float dailyVariation, float openingValue, float higherValue, float lowerValue, float annualVariation, int dailyExchangeVolume) {
         this.name = name;
         this.date = date;
         this.closingValue = closingValue;
@@ -25,7 +25,7 @@ public class MarketIndex implements Writable {
         this.higherValue = higherValue;
         this.lowerValue = lowerValue;
         this.annualVariation = annualVariation;
-        this.capitalization = capitalization;
+        this.dailyExchangeVolume = dailyExchangeVolume;
     }
 
     public MarketIndex() {
@@ -40,7 +40,7 @@ public class MarketIndex implements Writable {
         this.higherValue = copy.getHigherValue();
         this.lowerValue = copy.getLowerValue();
         this.annualVariation = copy.getAnnualVariation();
-        this.capitalization = copy.getCapitalization();
+        this.dailyExchangeVolume = copy.getDailyExchangeVolume();
     }
 
     @Override
@@ -53,7 +53,7 @@ public class MarketIndex implements Writable {
         dataOutput.writeFloat(higherValue);
         dataOutput.writeFloat(lowerValue);
         dataOutput.writeFloat(annualVariation);
-        dataOutput.writeInt(capitalization);
+        dataOutput.writeInt(dailyExchangeVolume);
     }
 
     @Override
@@ -67,7 +67,7 @@ public class MarketIndex implements Writable {
             higherValue = dataInput.readFloat();
             lowerValue = dataInput.readFloat();
             annualVariation = dataInput.readFloat();
-            capitalization = dataInput.readInt();
+            dailyExchangeVolume = dataInput.readInt();
         }
     }
 
@@ -135,12 +135,12 @@ public class MarketIndex implements Writable {
         this.annualVariation = annualVariation;
     }
 
-    public int getCapitalization() {
-        return capitalization;
+    public int getDailyExchangeVolume() {
+        return dailyExchangeVolume;
     }
 
-    public void setCapitalization(int capitalization) {
-        this.capitalization = capitalization;
+    public void setDailyExchangeVolume(int dailyExchangeVolume) {
+        this.dailyExchangeVolume = dailyExchangeVolume;
     }
 
     @Override
@@ -154,7 +154,7 @@ public class MarketIndex implements Writable {
                 ", higherValue=" + higherValue +
                 ", lowerValue=" + lowerValue +
                 ", annualVariation=" + annualVariation +
-                ", capitalization=" + capitalization +
+                ", dailyExchangeVolume=" + dailyExchangeVolume +
                 '}';
     }
 }

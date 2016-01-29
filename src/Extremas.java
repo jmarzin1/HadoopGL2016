@@ -23,14 +23,14 @@ public class Extremas {
 
     public void addBest(Float f, String string){
         best.put(f, string);
-        if ( best.size() >5){
+        if ( best.size() > size){
             best.remove(best.firstKey());
         }
     }
 
     public void addWorst(Float f, String string){
         worst.put(f, string);
-        if ( worst.size() >5){
+        if ( worst.size() > size){
             worst.remove(worst.lastKey());
         }
     }
@@ -51,4 +51,11 @@ public class Extremas {
         this.worst = worst;
     }
 
+    public Integer getSize() {
+        return size;
+    }
+
+    public void setSize(Integer size) {
+        this.size = size;
+    }
 }
