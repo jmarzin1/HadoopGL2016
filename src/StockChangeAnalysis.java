@@ -431,9 +431,9 @@ public class StockChangeAnalysis {
                 System.out.println("With Raw Data :");
                 System.out.println(" - parsing [inputURI] [outputURI]");
                 System.out.println(" - minMax [inputURI] [outputURI]");
-                System.out.println(" - topKWithoutParsing [inputURI] [outputURI]");
+                System.out.println(" - topKWithoutParsing [inputURI] [outputURI] {k}");
                 System.out.println("With Clean Data :");
-                System.out.println(" - topK [inputURI] [outputURI] ");
+                System.out.println(" - topK [inputURI] [outputURI] {k}");
                 System.out.println(" - BestAndWorst [inputURI] [outputURI]");
                 System.out.println("With result of Best and Worth :");
                 System.out.println(" - count [inputURI] [outputURI]");
